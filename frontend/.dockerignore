@@ -1,0 +1,17 @@
+.git/
+.gitignore
+
+node_modules/
+dist/
+out-tsc/
+.angular/
+.angular-dev-server/
+
+.env
+.env.*
+*.log
+
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

@@ -1,0 +1,46 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+
+# Local development configs
+.env
+.env.*
+configuration/
+configurations/
+
+# Runtime-only assets
+opensearch/
+build/
+
+# Tests
+**/*_test.go
+testdata/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go build cache / vendor
+.gocache/
+.go/
+.go-build/
+.golangci-cache/
+vendor/
+tex_data/
+
+# Logs
+*.log
+logs/
+bin/

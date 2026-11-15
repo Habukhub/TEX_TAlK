@@ -1,0 +1,302 @@
+include:
+  - project: 'nhr/shared/shared-ci-pipelines'
+    ref: 'main'
+    file: 'workflow.yml'
+
+stages:
+  - Lint
+  - Test
+  - Build_n_Push
+  - Migration
+  - Delivery
+
+default:
+  interruptible: true
+
+variables:
+  GO_VERSION: '1.25.0'
+
+  PROJECT_ID: 'hrex-470805'
+  GAR_LOCATION: 'asia-southeast1'
+  REPOSITORY: 'nhr-docker-artifact-registry'
+  IMAGE_NAME: 'tex-talk-backend'
+
+  CLOUD_RUN_REGION: 'asia-southeast1'
+  CLOUD_RUN_SERVICE_PROD: 'tex-talk-backend-prod'
+  CLOUD_RUN_PORT: '8080'
+  CLOUD_RUN_MEMORY: '512Mi'
+  CLOUD_RUN_CPU: '1'
+  CLOUD_RUN_ALLOW_UNAUTH: 'true'
+
+  FRONTEND_BASE_URL_PROD: 'https://tex-talk.extosoft.app'
+  API_ORIGIN_PROD: 'https://tex-talk-api.extosoft.app'
+
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ''
+  DOCKER_DRIVER: overlay2
+  FF_NETWORK_PER_BUILD: 'true'
+
+# ── Go job template — cache with fallback keys (reuses cache across branches) ──
+.go_job:
+  image: golang:${GO_VERSION}
+  cache:
+    - key:
+        files:
+          - go.sum
+        prefix: ${CI_PROJECT_NAME}-go-${GO_VERSION}
+      paths:
+        - .go/pkg/mod/
+        - .go-build/
+      policy: pull-push
+      fallback_keys:
+        - ${CI_PROJECT_NAME}-go-${GO_VERSION}-main
+        - ${CI_PROJECT_NAME}-go-${GO_VERSION}-
+  variables:
+    GOPATH: ${CI_PROJECT_DIR}/.go
+    GOCACHE: ${CI_PROJECT_DIR}/.go-build
+    GOFLAGS: '-mod=readonly'
+  before_script:
+    - mkdir -p .go/pkg/mod .go-build
+    - go version
+
+# ── GCloud auth only — for deploy jobs (no Docker needed) ──
+.gcloud_base:
+  image: google/cloud-sdk:slim
+  before_script:
+    - echo $GCP_SA_KEY | base64 -d > /tmp/gcloud-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcloud-key.json
+    - gcloud --quiet config set project "$PROJECT_ID"
+
+# ── GCloud + Docker CLI — for build_and_push only ──
+.gcloud_setup:
+  image: asia-southeast1-docker.pkg.dev/hrex-470805/nhr-docker-artifact-registry/gcloud-dockercli:555.0.0-slim
+  services:
+    - name: docker:dind
+      alias: docker
+  before_script:
+    - echo $GCP_SA_KEY | base64 -d > /tmp/gcloud-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcloud-key.json
+    - gcloud --quiet config set project "$PROJECT_ID"
+    - gcloud --quiet auth configure-docker "$GAR_LOCATION-docker.pkg.dev"
+
+# ──────────────────────────────
+# Lint
+# ──────────────────────────────
+lint:
+  stage: Lint
+  extends: .go_job
+  script:
+    - go vet ./...
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+# ──────────────────────────────
+# Test
+# ──────────────────────────────
+test:
+  stage: Test
+  extends: .go_job
+  script:
+    - go test ./...
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+# ──────────────────────────────
+# Build & Push
+# ──────────────────────────────
+build_and_push:
+  extends: .gcloud_setup
+  stage: Build_n_Push
+  retry: 1
+  script:
+    - |
+      export DOCKER_BUILDKIT=1
+      SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-8)
+      REGISTRY="$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY"
+      CACHE_IMAGE="$REGISTRY/$IMAGE_NAME:prod-latest"
+
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        TAG1="prod-$SHORT_SHA"
+        TAG2="prod-latest"
+      elif echo "$CI_COMMIT_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+        TAG1="$CI_COMMIT_TAG"
+        TAG2="prod-latest"
+      else
+        echo "Skip build for $CI_COMMIT_REF_NAME"
+        exit 0
+      fi
+
+      echo "Pulling cache: $CACHE_IMAGE"
+      docker pull "$CACHE_IMAGE" || true
+
+      docker build \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --cache-from "$CACHE_IMAGE" \
+        -t "$REGISTRY/$IMAGE_NAME:$TAG1" \
+        -t "$REGISTRY/$IMAGE_NAME:$TAG2" \
+        .
+
+      docker push "$REGISTRY/$IMAGE_NAME:$TAG1"
+      docker push "$REGISTRY/$IMAGE_NAME:$TAG2"
+      echo "Pushed: $REGISTRY/$IMAGE_NAME:$TAG1 and :$TAG2"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+# ──────────────────────────────
+# Migration
+# ──────────────────────────────
+.migration_template:
+  stage: Migration
+  image: asia-southeast1-docker.pkg.dev/hrex-470805/nhr-docker-artifact-registry/gcloud-migration:2.8.2-alpine
+  before_script:
+    - atlas version
+    - cloud-sql-proxy --version
+    - echo $GCP_SA_KEY | base64 -d > "$CI_PROJECT_DIR/gcp-key.json"
+    - gcloud auth activate-service-account --key-file="$CI_PROJECT_DIR/gcp-key.json"
+    - gcloud --quiet config set project "$PROJECT_ID"
+  script:
+    - |
+      MIGRATION_DIR="file://migrations/${MIGRATE_ENV}"
+      SECRET_PREFIX="${MIGRATE_SECRET_PREFIX}"
+
+      echo "=== Fetching DB credentials from Secret Manager (prefix: ${SECRET_PREFIX}) ==="
+      DB_USER=$(gcloud secrets versions access latest --secret="${SECRET_PREFIX}_DB_USER" --project="$PROJECT_ID" 2>/dev/null) || DB_USER=""
+      DB_PASS=$(gcloud secrets versions access latest --secret="${SECRET_PREFIX}_DB_PASS" --project="$PROJECT_ID" 2>/dev/null) || DB_PASS=""
+      DB_NAME=$(gcloud secrets versions access latest --secret="${SECRET_PREFIX}_DB_NAME" --project="$PROJECT_ID" 2>/dev/null) || DB_NAME=""
+
+      [ -z "$DB_USER" ]                   && echo "ERROR: ${SECRET_PREFIX}_DB_USER is empty"         && exit 1
+      [ -z "$DB_PASS" ]                   && echo "ERROR: ${SECRET_PREFIX}_DB_PASS is empty"         && exit 1
+      [ -z "$DB_NAME" ]                   && echo "ERROR: ${SECRET_PREFIX}_DB_NAME is empty"         && exit 1
+      [ -z "$MIGRATE_CLOUDSQL_INSTANCE" ] && echo "ERROR: MIGRATE_CLOUDSQL_INSTANCE is empty"        && exit 1
+
+      atlas migrate hash --dir "$MIGRATION_DIR"
+
+      cloud-sql-proxy "$MIGRATE_CLOUDSQL_INSTANCE" \
+        --credentials-file="$CI_PROJECT_DIR/gcp-key.json" \
+        --port=5432 &
+      PROXY_PID=$!
+
+      for i in $(seq 1 30); do
+        if nc -z localhost 5432 2>/dev/null; then
+          echo "Cloud SQL Proxy is ready"
+          break
+        fi
+        [ "$i" = "30" ] && echo "ERROR: Cloud SQL Proxy did not start in time" && kill "$PROXY_PID" && exit 1
+        sleep 2
+      done
+
+      ENCODED_PASS=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$DB_PASS")
+      DATABASE_URL="postgresql://${DB_USER}:${ENCODED_PASS}@localhost:5432/${DB_NAME}?sslmode=disable"
+
+      atlas migrate apply --url "$DATABASE_URL" --dir "$MIGRATION_DIR"
+      MIGRATE_EXIT=$?
+      kill "$PROXY_PID" 2>/dev/null || true
+      exit "$MIGRATE_EXIT"
+  allow_failure: false
+
+migrate_prod:
+  extends: .migration_template
+  variables:
+    MIGRATE_ENV: prod
+    MIGRATE_SECRET_PREFIX: 'TEX_TALK_PROD'
+    MIGRATE_CLOUDSQL_INSTANCE: $PROD_CLOUDSQL_INSTANCE
+  environment:
+    name: prod
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+# ──────────────────────────────
+# Deploy to Cloud Run
+# ──────────────────────────────
+.deploy_cloudrun:
+  extends: .gcloud_base
+  stage: Delivery
+  retry: 1
+  script:
+    - |
+      REGISTRY="$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY"
+      IMAGE_URI="$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+      SECRET_PREFIX="${DEPLOY_SECRET_PREFIX}"
+      GOOGLE_REDIRECT_URL="${DEPLOY_API_ORIGIN}/api/v1/auth/google/callback"
+      CORS_ALLOWED_ORIGINS="$DEPLOY_FRONTEND_BASE_URL"
+
+      # Secrets from GCP Secret Manager — DB only (sensitive, need audit trail + rotation)
+      SECRETS_SPEC="DB_USER=${SECRET_PREFIX}_DB_USER:latest"
+      SECRETS_SPEC="${SECRETS_SPEC},DB_PASSWORD=${SECRET_PREFIX}_DB_PASS:latest"
+      SECRETS_SPEC="${SECRETS_SPEC},DB_NAME=${SECRET_PREFIX}_DB_NAME:latest"
+
+      # Build env-vars file (avoids shell splitting issues with spaces/commas in values)
+      ENV_FILE="$CI_PROJECT_DIR/cloudrun-env.yaml"
+      : > "$ENV_FILE"
+      add_env() {
+        [ -n "$2" ] && printf "%s: '%s'\n" "$1" "$(printf '%s' "$2" | sed "s/'/''/g")" >> "$ENV_FILE"
+      }
+
+      add_env "APP_ENV"                  "$APP_ENV_NAME"
+      add_env "SERVICE_NAME"             "tex-talk-backend"
+      add_env "APP_TIMEZONE"             "Asia/Bangkok"
+      add_env "FRONTEND_BASE_URL"        "$DEPLOY_FRONTEND_BASE_URL"
+      add_env "CORS_ALLOWED_ORIGINS"     "$CORS_ALLOWED_ORIGINS"
+      add_env "GOOGLE_REDIRECT_URL"      "$GOOGLE_REDIRECT_URL"
+      add_env "DB_SSLMODE"               "disable"
+      add_env "DB_PORT"                  "5432"
+      # From GitLab CI Variables (Settings → CI/CD → Variables)
+      add_env "GOOGLE_CLIENT_ID"         "$DEPLOY_GOOGLE_CLIENT_ID"
+      add_env "GOOGLE_CLIENT_SECRET"     "$DEPLOY_GOOGLE_CLIENT_SECRET"
+      add_env "JWT_SECRET"               "$DEPLOY_JWT_SECRET"
+      add_env "ADMIN_EMAILS"             "$DEPLOY_ADMIN_EMAILS"
+      add_env "FIREBASE_STORAGE_BUCKET"  "$DEPLOY_FIREBASE_STORAGE_BUCKET"
+      add_env "SCHEDULE_POLLING_ENABLED" "${DEPLOY_SCHEDULE_POLLING_ENABLED:-false}"
+
+      EXTRA_FLAGS="--port $CLOUD_RUN_PORT --memory $CLOUD_RUN_MEMORY --cpu $CLOUD_RUN_CPU --min-instances=0 --max-instances=3"
+      [ "$CLOUD_RUN_ALLOW_UNAUTH" = "true" ] && EXTRA_FLAGS="$EXTRA_FLAGS --allow-unauthenticated"
+      [ -n "$CLOUD_RUN_SA_EMAIL" ]            && EXTRA_FLAGS="$EXTRA_FLAGS --service-account $CLOUD_RUN_SA_EMAIL"
+      if [ -n "$DEPLOY_CLOUDSQL_INSTANCE" ]; then
+        EXTRA_FLAGS="$EXTRA_FLAGS --add-cloudsql-instances $DEPLOY_CLOUDSQL_INSTANCE"
+        add_env "DB_HOST" "/cloudsql/$DEPLOY_CLOUDSQL_INSTANCE"
+      fi
+
+      echo "Deploying $IMAGE_URI to Cloud Run service: $CLOUD_RUN_SERVICE"
+      gcloud run deploy "$CLOUD_RUN_SERVICE" \
+        --image "$IMAGE_URI" \
+        --platform managed \
+        --region "$CLOUD_RUN_REGION" \
+        --set-secrets "$SECRETS_SPEC" \
+        --env-vars-file "$ENV_FILE" \
+        $EXTRA_FLAGS \
+        --quiet
+
+      gcloud run services describe "$CLOUD_RUN_SERVICE" \
+        --region="$CLOUD_RUN_REGION" \
+        --format="value(status.url)"
+
+deploy_prod:
+  extends: .deploy_cloudrun
+  needs:
+    - job: build_and_push
+    - job: migrate_prod
+  variables:
+    IMAGE_TAG: 'prod-$CI_COMMIT_SHORT_SHA'
+    APP_ENV_NAME: 'prod'
+    DEPLOY_SECRET_PREFIX: 'TEX_TALK_PROD'
+    DEPLOY_CLOUDSQL_INSTANCE: $PROD_CLOUDSQL_INSTANCE
+    DEPLOY_FRONTEND_BASE_URL: $FRONTEND_BASE_URL_PROD
+    DEPLOY_API_ORIGIN: $API_ORIGIN_PROD
+    CLOUD_RUN_SERVICE: $CLOUD_RUN_SERVICE_PROD
+    # From GitLab CI Variables
+    DEPLOY_GOOGLE_CLIENT_ID: $PROD_GOOGLE_CLIENT_ID
+    DEPLOY_GOOGLE_CLIENT_SECRET: $PROD_GOOGLE_CLIENT_SECRET
+    DEPLOY_JWT_SECRET: $PROD_JWT_SECRET
+    DEPLOY_ADMIN_EMAILS: $PROD_ADMIN_EMAILS
+    DEPLOY_FIREBASE_STORAGE_BUCKET: $PROD_FIREBASE_STORAGE_BUCKET
+  environment:
+    name: prod
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'

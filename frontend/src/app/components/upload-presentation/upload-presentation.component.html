@@ -1,0 +1,71 @@
+<app-modal [isOpen]="isOpen" kicker="Upload file" title="UPLOAD PRESENTATION" (dismissed)="onClose()">
+  <form class="upload-form" (ngSubmit)="onSubmit()">
+    <label>
+      <span>Speaker Name</span>
+      <div class="select-wrapper">
+        <input
+          type="text"
+          name="speakerName"
+          [(ngModel)]="selectedSpeakerName"
+          (input)="onSpeakerChange()"
+          (change)="onSpeakerChange()"
+          (focus)="openSpeakerDropdown()"
+          (blur)="closeSpeakerDropdown()"
+          placeholder="Select or type a speaker..."
+          autocomplete="off"
+          required
+        />
+        <button
+          type="button"
+          class="dropdown-trigger"
+          aria-label="Show approved speakers"
+          (mousedown)="$event.preventDefault()"
+          (click)="openSpeakerDropdown()"
+        >
+          <span class="material-symbols-outlined">expand_more</span>
+        </button>
+        <div *ngIf="isSpeakerDropdownOpen" class="speaker-dropdown" role="listbox">
+          <button
+            *ngFor="let speaker of filteredSpeakers"
+            type="button"
+            class="speaker-option"
+            role="option"
+            [attr.aria-selected]="speaker.id === selectedSpeakerId"
+            (mousedown)="$event.preventDefault(); selectSpeaker(speaker)"
+          >
+            {{ speaker.full_name }}
+          </button>
+          <div *ngIf="filteredSpeakers.length === 0" class="speaker-option speaker-option--empty">
+            No matching speakers
+          </div>
+        </div>
+      </div>
+    </label>
+
+    <label>
+      <span>Talk Title</span>
+      <input type="text" name="topic" [(ngModel)]="selectedTopic" placeholder="Auto-filled from speaker" readonly disabled class="readonly-input" />
+    </label>
+
+    <label>
+      <span>Presentation File</span>
+      <div class="file-upload-wrapper">
+        <input
+          #presentationFileInput
+          type="file"
+          id="presentationFile"
+          name="file"
+          (change)="onFileChange($event)"
+          accept=".pdf,.ppt,.pptx"
+          required
+        />
+        <span class="file-upload-hint">PDF, PPT, or PPTX (Max 50MB)</span>
+      </div>
+    </label>
+
+    <div class="upload-modal__actions">
+      <app-button variant="home-secondary" (clicked)="onClose()">Cancel</app-button>
+      <app-button type="submit" variant="home-primary" [disabled]="!selectedSpeakerName.trim() || !selectedFile">Upload</app-button>
+    </div>
+  </form>
+</app-modal>

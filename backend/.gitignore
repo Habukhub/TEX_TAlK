@@ -1,0 +1,53 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/__debug_bin*
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage
+coverage.html
+
+# Go workspace file
+go.work
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/*.code-snippets
+
+# IntelliJ / GoLand
+.idea/
+*.iml
+
+# OS specifics
+.DS_Store
+Thumbs.db
+
+# Local configuration and credentials
+configuration/config.json
+configurations/
+.env
+.env.*
+!.env*.example
+configuration/firebase-key.json
+
+# Generated docs
+docs/swagger.json
+docs/swagger.yaml
+
+# Local database data
+tex_data/
+storage/
+
+# Build output
+bin/
+tmp/

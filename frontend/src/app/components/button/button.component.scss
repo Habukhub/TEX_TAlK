@@ -1,0 +1,139 @@
+/* Home Button Styles */
+.home-button {
+  min-height: 48px;
+  border-radius: 999px;
+  padding: 0 24px;
+  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+}
+
+.home-button--primary {
+  background: linear-gradient(135deg, #ffe16d 0%, #ffd700 100%);
+  color: #1a1606;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.28);
+}
+
+.home-button--primary:hover {
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.44);
+}
+
+.home-button--secondary {
+  border: 1px solid var(--btn-secondary-border, rgba(104, 151, 255, 0.48));
+  background: var(--btn-secondary-bg, rgba(55, 112, 255, 0.08));
+  color: var(--btn-secondary-text, #eef3ff);
+}
+
+.home-button--secondary:hover {
+  background: var(--btn-secondary-bg-hover, rgba(55, 112, 255, 0.14));
+  box-shadow: 0 0 16px rgba(55, 112, 255, 0.26);
+}
+
+.home-button--full {
+  width: 100%;
+}
+
+.home-button:disabled,
+.small-button:disabled,
+.primary-button:disabled,
+.secondary-button:disabled,
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+  transform: none;
+}
+
+.home-button:disabled:hover,
+.small-button:disabled:hover,
+.primary-button:disabled:hover,
+.secondary-button:disabled:hover,
+.icon-button:disabled:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+/* Admin Button Styles */
+.small-button,
+.primary-button,
+.secondary-button,
+.icon-button {
+  border: 0;
+  font-weight: 700;
+  letter-spacing: 0;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.small-button:hover,
+.primary-button:hover,
+.secondary-button:hover,
+.icon-button:hover {
+  transform: translateY(-1px);
+}
+
+.small-button {
+  min-height: 32px;
+  border-radius: 7px;
+  padding: 0 14px;
+  color: #fff;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.small-button.approve {
+  background: var(--success, #217a45);
+}
+
+.small-button.reject {
+  background: var(--danger, #c2413d);
+}
+
+.small-button.edit,
+.primary-button {
+  background: var(--yellow-500, #f3c623);
+  color: var(--navy-950, #071428);
+}
+
+.small-button.edit-blue {
+  background: #0e74db;
+  color: #ffffff;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0 20px;
+  font-size: 14px;
+}
+
+.primary-button {
+  box-shadow: 0 10px 24px rgba(243, 198, 35, 0.24);
+}
+
+.secondary-button {
+  border: 1px solid var(--line, #e5eaf0);
+  background: #ffffff;
+  color: var(--ink-700, #334155);
+}
+
+.icon-button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #eef2f7;
+  color: var(--navy-950, #071428);
+}

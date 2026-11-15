@@ -1,0 +1,195 @@
+.upload-form {
+  display: grid;
+  gap: 18px;
+}
+
+.upload-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.upload-form label span:not(.material-symbols-outlined):not(.file-name) {
+  color: var(--text-label);
+  font-family: 'Space Grotesk', 'Prompt', 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.select-wrapper {
+  position: relative;
+}
+
+.select-wrapper input {
+  width: 100%;
+  border: var(--border-input);
+  border-radius: 16px;
+  padding: 14px 40px 14px 16px;
+  background: var(--bg-input);
+  color: var(--text-base);
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.select-wrapper input:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: var(--shadow-input-focus);
+  outline: none;
+}
+
+.select-wrapper input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.dropdown-trigger {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-subtle);
+  transform: translateY(-50%);
+}
+
+.dropdown-trigger:hover {
+  background: var(--bg-close-btn);
+  color: var(--text-base);
+}
+
+.dropdown-trigger .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.speaker-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 16px;
+  z-index: 5;
+  width: min(280px, calc(100% - 32px));
+  max-height: 220px;
+  overflow-y: auto;
+  border: var(--border-input);
+  border-radius: 10px;
+  background: var(--bg-modal);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+}
+
+.speaker-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 22px;
+  width: 14px;
+  height: 14px;
+  border-top: var(--border-input);
+  border-left: var(--border-input);
+  background: var(--bg-modal);
+  transform: rotate(45deg);
+}
+
+.speaker-option {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  border: 0;
+  padding: 14px 16px;
+  background: transparent;
+  color: var(--text-base);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+
+.speaker-option:hover {
+  background: var(--btn-secondary-bg-hover);
+}
+
+.speaker-option--empty {
+  color: var(--text-subtle);
+  cursor: default;
+}
+
+.upload-form input[type="text"] {
+  width: 100%;
+  border: var(--border-input);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: var(--bg-input);
+  color: var(--text-base);
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.readonly-input {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.file-upload-wrapper {
+  display: grid;
+  gap: 8px;
+}
+
+.file-upload-wrapper input[type="file"] {
+  width: 100%;
+  min-height: 52px;
+  border: var(--border-input);
+  border-radius: 16px;
+  padding: 9px 12px;
+  background: var(--bg-input);
+  color: var(--text-base);
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.file-upload-wrapper input[type="file"]:hover {
+  border-color: var(--border-input-focus);
+}
+
+.file-upload-wrapper input[type="file"]:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: var(--shadow-input-focus);
+  outline: none;
+}
+
+.file-upload-wrapper input[type="file"]::file-selector-button {
+  min-height: 34px;
+  margin-right: 14px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 14px;
+  background: var(--accent-brand);
+  color: #ffffff;
+  font-family: 'Space Grotesk', 'Prompt', 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.file-upload-hint {
+  color: var(--text-subtle);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.upload-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}

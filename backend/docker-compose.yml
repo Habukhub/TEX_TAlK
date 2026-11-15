@@ -1,0 +1,72 @@
+name: tex-backend
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: tex-db
+    restart: always
+    ports:
+      - "6632:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tex_db
+    volumes:
+      - tex_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d tex_db"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: tex-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: tex-opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_started
+
+  fluent-bit:
+    image: fluent/fluent-bit:2.2
+    container_name: tex-fluent-bit
+    volumes:
+      - ./opensearch/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./opensearch/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - ./opensearch/fluent-bit/extract_env.lua:/fluent-bit/etc/extract_env.lua:ro
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+      - "24225:24225"
+    depends_on:
+      opensearch:
+        condition: service_started
+
+volumes:
+  tex_data:
+  opensearch_data:

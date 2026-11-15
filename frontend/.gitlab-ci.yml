@@ -1,0 +1,186 @@
+stages:
+  - lint
+  - test
+  - build_n_push
+  - sca_image
+  - deploy
+
+default:
+  interruptible: true
+
+variables:
+  PROJECT_ID: "hrex-470805"
+  GAR_LOCATION: "asia-southeast1"
+  REPOSITORY: "nhr-docker-artifact-registry"
+  IMAGE_NAME: "tex-talk-frontend"
+  REGISTRY: "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY"
+
+  CLOUD_RUN_REGION: "asia-southeast1"
+  CLOUD_RUN_SERVICE_PROD: "tex-talk-frontend-prod"
+  CLOUD_RUN_PORT: "8080"
+  CLOUD_RUN_MEMORY: "256Mi"
+  CLOUD_RUN_CPU: "1"
+
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
+.node_job:
+  image: node:22-bookworm-slim
+  cache:
+    key:
+      files:
+        - package-lock.json
+      prefix: "npm"
+    paths:
+      - node_modules/
+    policy: pull-push
+  before_script:
+    - node -v && npm -v
+    - npm ci --no-audit --no-fund
+
+.gcloud_setup:
+  image: google/cloud-sdk:slim
+  services:
+    - docker:27-dind
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq docker.io
+    - echo "$GCP_SA_KEY" | base64 -d > /tmp/gcloud-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcloud-key.json
+    - gcloud config set project "$PROJECT_ID"
+    - gcloud auth configure-docker "$GAR_LOCATION-docker.pkg.dev" --quiet
+
+.deploy_cloudrun:
+  extends: .gcloud_setup
+  stage: deploy
+  retry: 1
+  script:
+    - |
+      echo "Deploying $REGISTRY/$IMAGE_NAME:$IMAGE_TAG to $CLOUD_RUN_SERVICE"
+      gcloud run deploy "$CLOUD_RUN_SERVICE" \
+        --image="$REGISTRY/$IMAGE_NAME:$IMAGE_TAG" \
+        --region="$CLOUD_RUN_REGION" \
+        --port="$CLOUD_RUN_PORT" \
+        --memory="$CLOUD_RUN_MEMORY" \
+        --cpu="$CLOUD_RUN_CPU" \
+        --min-instances=0 \
+        --max-instances=3 \
+        --allow-unauthenticated \
+        --quiet
+      gcloud run services describe "$CLOUD_RUN_SERVICE" \
+        --region="$CLOUD_RUN_REGION" \
+        --format="value(status.url)"
+
+lint:
+  stage: lint
+  extends: .node_job
+  script:
+    - npm run lint
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+test:
+  stage: test
+  extends: .node_job
+  variables:
+    CHROME_BIN: /usr/bin/chromium
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq chromium
+    - node -v && npm -v
+    - npm ci --no-audit --no-fund
+  script:
+    - npm run test
+  artifacts:
+    when: always
+    paths:
+      - coverage/
+    expire_in: 1 day
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+build_and_push:
+  extends: .gcloud_setup
+  stage: build_n_push
+  retry: 1
+  script:
+    - export SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-8)
+    - |
+      BUILD_CONFIG="production"
+      CACHE_TAG="prod-latest"
+
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        TAGS="prod-$SHORT_SHA prod-latest"
+      elif echo "$CI_COMMIT_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+        TAGS="$CI_COMMIT_TAG prod-latest"
+      else
+        echo "Skip build for branch/tag $CI_COMMIT_REF_NAME"
+        exit 0
+      fi
+
+      if [ -z "$FRONTEND_API_URL" ]; then
+        echo "FRONTEND_API_URL CI variable is required"
+        exit 1
+      fi
+
+      docker pull "$REGISTRY/$IMAGE_NAME:$CACHE_TAG" || true
+      DOCKER_BUILDKIT=1 docker build \
+        --cache-from "$REGISTRY/$IMAGE_NAME:$CACHE_TAG" \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --build-arg BUILD_CONFIGURATION="$BUILD_CONFIG" \
+        --build-arg BUILD_SHA="$CI_COMMIT_SHA" \
+        --build-arg FRONTEND_API_URL="$FRONTEND_API_URL" \
+        -t "$IMAGE_NAME" .
+
+      for TAG in $TAGS; do
+        docker tag "$IMAGE_NAME" "$REGISTRY/$IMAGE_NAME:$TAG"
+        docker push "$REGISTRY/$IMAGE_NAME:$TAG"
+        echo "Pushed $REGISTRY/$IMAGE_NAME:$TAG"
+      done
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+image_scan:
+  stage: sca_image
+  allow_failure: true
+  image: asia-southeast1-docker.pkg.dev/hrex-470805/nhr-docker-artifact-registry/gcloud-dockercli-trivy:0.69.1-slim
+  services:
+    - name: docker:27-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    TRIVY_SEVERITY: "HIGH,CRITICAL"
+    TRIVY_EXIT_CODE: "0"
+  before_script:
+    - echo "$GCP_SA_KEY" | base64 -d > /tmp/gcloud-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcloud-key.json
+    - gcloud config set project "$PROJECT_ID"
+    - gcloud auth configure-docker "$GAR_LOCATION-docker.pkg.dev" --quiet
+  script:
+    - docker pull "$REGISTRY/$IMAGE_NAME:prod-latest"
+    - trivy image --download-db-only || true
+    - trivy image --exit-code "$TRIVY_EXIT_CODE" --severity "$TRIVY_SEVERITY" --ignore-unfixed "$REGISTRY/$IMAGE_NAME:prod-latest"
+  needs:
+    - build_and_push
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+
+deploy_prod:
+  extends: .deploy_cloudrun
+  needs:
+    - build_and_push
+    - image_scan
+  variables:
+    IMAGE_TAG: "prod-$CI_COMMIT_SHORT_SHA"
+    CLOUD_RUN_SERVICE: $CLOUD_RUN_SERVICE_PROD
+  environment:
+    name: prod
+    url: https://tex-talk.extosoft.app
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'

@@ -1,0 +1,505 @@
+<div class="admin-shell" [class.sidebar-collapsed]="isSidebarCollapsed()">
+  <button type="button" class="mobile-menu-toggle" [class.hidden]="isSidebarOpen()"
+    [attr.aria-expanded]="isSidebarExpanded()" aria-label="Open admin navigation" (click)="toggleSidebar()">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <button *ngIf="isSidebarOpen()" type="button" class="sidebar-backdrop" aria-label="Close admin navigation"
+    (click)="closeSidebar()"></button>
+
+  <aside class="sidebar" [class.sidebar-open]="isSidebarOpen()" [class.sidebar-collapsed]="isSidebarCollapsed()"
+    aria-label="Admin navigation">
+    <div class="sidebar-header">
+      <div class="brand">
+        <span>TEX</span>
+        <strong>TALK</strong>
+      </div>
+
+      <button type="button" class="menu-toggle" [attr.aria-expanded]="isSidebarExpanded()"
+        aria-label="Toggle admin navigation" (click)="toggleSidebar()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+
+    <p class="panel-label">Admin Panel</p>
+
+    <nav class="nav-list" aria-label="Admin sections">
+      <button type="button" class="nav-item" [class.active]="activeTab() === 'pending'"
+        (click)="setActiveTab('pending')">
+        <span class="nav-icon" aria-hidden="true">PR</span>
+        <span class="nav-label">Pending</span>
+      </button>
+      <button type="button" class="nav-item" [class.active]="activeTab() === 'history'"
+        (click)="setActiveTab('history')">
+        <span class="nav-icon" aria-hidden="true">HI</span>
+        <span class="nav-label">History</span>
+      </button>
+      <button type="button" class="nav-item" [class.active]="activeTab() === 'timeline'"
+        (click)="setActiveTab('timeline')">
+        <span class="nav-icon" aria-hidden="true">TL</span>
+        <span class="nav-label">Timeline</span>
+      </button>
+      <button type="button" class="nav-item" [class.active]="activeTab() === 'settings'"
+        (click)="setActiveTab('settings')">
+        <span class="nav-icon" aria-hidden="true">ST</span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </nav>
+
+    <button type="button" class="logout-button" (click)="logout()">Logout</button>
+  </aside>
+
+  <main class="admin-main">
+    <section *ngIf="activeTab() === 'pending'" class="view-panel" aria-labelledby="pending-title">
+      <header class="page-header">
+        <div>
+          <h1 id="pending-title">Pending Review</h1>
+          <p>Oversee and organize all conference activities and speaker submissions.</p>
+        </div>
+      </header>
+
+      <div class="stats-grid" aria-label="Application totals">
+        <article class="stat-card">
+          <span>Total Applications</span>
+          <strong>{{ stats().total }}</strong>
+          <p>All submissions received</p>
+        </article>
+        <article class="stat-card" [class.attention]="stats().pending > 0">
+          <span>Pending Review</span>
+          <strong>{{ stats().pending }}</strong>
+          <p>Requires immediate attention</p>
+        </article>
+        <article class="stat-card">
+          <span>Approved Speakers</span>
+          <strong>{{ stats().approved }}</strong>
+          <p>Ready for scheduling</p>
+        </article>
+        <article class="stat-card">
+          <span>Scheduled Talks</span>
+          <strong>{{ stats().scheduled }}</strong>
+          <p>Assigned to timeline</p>
+        </article>
+      </div>
+
+      <section class="table-card" aria-labelledby="registration-title">
+        <div class="table-title">
+          <h2 id="registration-title">Registration Management</h2>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Applicant</th>
+                <th scope="col">Email</th>
+                <th scope="col">Topic Title</th>
+                <th scope="col">Submission Date</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="
+                  let application of pendingApplications();
+                  let index = index;
+                  trackBy: trackById
+                ">
+                <td data-label="#">{{ (index + 1).toString().padStart(3, '0') }}</td>
+                <td data-label="Applicant">
+                  <strong>{{ application.applicantName }}</strong>
+                </td>
+                <td data-label="Email" class="truncate-cell" [title]="application.email">{{ application.email }}</td>
+                <td data-label="Topic" class="truncate-cell" [title]="application.topic">{{ application.topic }}</td>
+                <td data-label="Submitted">{{ application.submissionDate }}</td>
+                <td data-label="Status"><span class="badge neutral">Pending</span></td>
+                <td data-label="Actions">
+                  <div class="action-row" style="align-items: center; justify-content: center;">
+                    <app-button variant="admin-edit-blue" (clicked)="openEditInfoModal(application)">
+                      edit
+                    </app-button>
+                    <app-button variant="admin-approve" (clicked)="approveApplication(application.id)">
+                      approve
+                    </app-button>
+                    <app-button variant="admin-reject" (clicked)="rejectApplication(application.id)">
+                      reject
+                    </app-button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="pendingApplications().length === 0">
+                <td colspan="8" class="empty-state">No pending applications.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section *ngIf="activeTab() === 'history'" class="view-panel" aria-labelledby="history-title">
+      <header class="page-header">
+        <div>
+          <h1 id="history-title">Application History</h1>
+          <p>Review past decisions and application outcomes.</p>
+        </div>
+        <app-button variant="admin-primary" *ngIf="selectedForZip.size > 0" (clicked)="downloadZip()">
+          Download Selected Slides (ZIP)
+        </app-button>
+      </header>
+
+      <section class="table-card" aria-labelledby="review-history-title">
+        <div class="table-title">
+          <h2 id="review-history-title">Review History</h2>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col" style="width: 40px;">
+                  <input type="checkbox" (change)="toggleAllZips($event)" [checked]="areAllZipsSelected()" />
+                </th>
+                <th scope="col">Applicant</th>
+                <th scope="col">Topic</th>
+                <th scope="col">Submission</th>
+                <th scope="col">Decision</th>
+                <th scope="col">Approved At</th>
+                <th scope="col" class="col-edit">Actions</th>
+                <th scope="col">Slide</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let application of approvedApplications(); trackBy: trackById">
+                <td>
+                  <input type="checkbox" [checked]="selectedForZip.has(application.id)"
+                    (change)="toggleZipSelection(application.id)" />
+                </td>
+                <td data-label="Applicant">
+                  <strong>{{ application.applicantName }}</strong>
+                </td>
+                <td data-label="Topic" class="truncate-cell" [title]="application.topic">{{ application.topic }}</td>
+                <td data-label="Submission">{{ application.submissionDate }}</td>
+                <td data-label="Decision"><span class="badge success">Approved</span></td>
+                <td data-label="Approved At">{{ application.approvedAt }}</td>
+                <td data-label="Edit" class="col-edit">
+                  <div class="action-icons-group">
+                    <button type="button" class="icon-action-btn icon-action-btn--edit" aria-label="Edit submission info"
+                      (click)="openEditInfoModal(application)">
+                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                    </button>
+                    <button type="button" class="icon-action-btn icon-action-btn--delete" aria-label="Delete submission"
+                      (click)="deleteApplicationHistory(application.id)">
+                      <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    </button>
+                  </div>
+                </td>
+                <td data-label="Slide">
+                  <app-button *ngIf="application.slideFileName" variant="admin-edit"
+                    (clicked)="downloadSlide(application.id)">
+                    Download
+                  </app-button>
+                  <span *ngIf="!application.slideFileName" class="empty-state">No file</span>
+                </td>
+              </tr>
+              <tr *ngIf="approvedApplications().length === 0">
+                <td colspan="8" class="empty-state">No approved applications yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section *ngIf="activeTab() === 'timeline'" class="view-panel" aria-labelledby="timeline-title">
+      <header class="page-header timeline-header">
+        <div>
+          <h1 id="timeline-title">Conference Timeline</h1>
+          <p>Manage speaker schedules and presentation times.</p>
+        </div>
+        <app-button variant="admin-primary" (clicked)="openScheduleModal()">
+          Add New Entry
+        </app-button>
+      </header>
+
+      <section class="table-card" aria-labelledby="schedule-title">
+        <div class="table-title">
+          <h2 id="schedule-title">Schedule Management</h2>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Speaker</th>
+                <th scope="col">Topic</th>
+                <th scope="col">Duration</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let entry of timelineEntries(); trackBy: trackById">
+                <td data-label="Time">
+                  <strong class="time-text">{{ entry.startTime }} - {{ entry.endTime }}</strong>
+                </td>
+                <td data-label="Speaker">
+                  <strong>{{ entry.speaker }}</strong>
+                </td>
+                <td data-label="Topic" class="truncate-cell" [title]="entry.topic">{{ entry.topic }}</td>
+                <td data-label="Duration">{{ getDuration(entry) }}</td>
+                <td data-label="Actions">
+                  <div class="action-icons-group">
+                    <button type="button" class="icon-action-btn icon-action-btn--edit" aria-label="Edit schedule entry"
+                      (click)="editScheduleEntry(entry)">
+                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                    </button>
+                    <button type="button" class="icon-action-btn icon-action-btn--delete" aria-label="Delete schedule entry"
+                      (click)="deleteTimelineEntry(entry.id)">
+                      <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="timelineEntries().length === 0">
+                <td colspan="6" class="empty-state">No schedule entries yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section *ngIf="activeTab() === 'settings'" class="view-panel" aria-labelledby="settings-title">
+      <header class="page-header">
+        <div>
+          <h1 id="settings-title">Settings</h1>
+          <p>Control what speakers can access from the public TEX TALK page.</p>
+        </div>
+      </header>
+
+      <section class="settings-card" aria-labelledby="presentation-upload-title">
+        <div class="setting-row">
+          <div class="setting-copy">
+            <span class="setting-kicker">Home page control</span>
+            <h2 id="presentation-upload-title">Upload Presentation Button</h2>
+            <p>
+              Turn this on when approved speakers are allowed to submit presentation files.
+            </p>
+          </div>
+
+          <div class="setting-control">
+            <span class="setting-status" [class.enabled]="isPresentationUploadEnabled()">
+              {{ isPresentationUploadEnabled() ? 'Open' : 'Closed' }}
+            </span>
+            <label class="switch">
+              <input type="checkbox" [checked]="isPresentationUploadEnabled()"
+                (change)="setPresentationUploadEnabled($event)" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="sr-only">Toggle presentation uploads</span>
+            </label>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div *ngIf="isScheduleModalOpen()" class="modal-backdrop" role="presentation" tabindex="-1"
+  (keydown.escape)="closeScheduleModal()">
+  <section class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
+    <header class="modal-header">
+      <div>
+        <h2 id="schedule-modal-title">{{ scheduleModalTitle() }}</h2>
+        <p>{{ scheduleModalDescription() }}</p>
+      </div>
+      <app-button variant="admin-icon" aria-label="Close modal" (clicked)="closeScheduleModal()">
+        X
+      </app-button>
+    </header>
+
+    <form class="schedule-form" (ngSubmit)="saveScheduleEntry()">
+      <label>
+        Speaker
+        <select name="applicationId" [(ngModel)]="scheduleForm.applicationId" (ngModelChange)="updateSelectedSpeaker()"
+          required>
+          <option [ngValue]="null">Select approved speaker</option>
+          <option *ngIf="availableApprovedApplications().length === 0" [ngValue]="null" disabled>
+            No approved speakers available
+          </option>
+          <option *ngFor="let application of availableApprovedApplications(); trackBy: trackById"
+            [ngValue]="application.id">
+            {{ application.applicantName }}
+          </option>
+        </select>
+      </label>
+
+      <label>
+        Topic
+        <textarea class="readonly-field" name="topic" [ngModel]="scheduleForm.topic" readonly disabled
+          aria-readonly="true" rows="3"></textarea>
+      </label>
+
+      <div class="form-grid">
+        <label>
+          Start Time
+          <input type="time" name="startTime" [(ngModel)]="scheduleForm.startTime" required />
+        </label>
+        <label>
+          End Time
+          <input type="time" name="endTime" [(ngModel)]="scheduleForm.endTime" required />
+        </label>
+      </div>
+
+      <p *ngIf="formError()" class="form-error">{{ formError() }}</p>
+
+      <div class="modal-actions">
+        <app-button variant="admin-secondary" (clicked)="closeScheduleModal()">
+          Cancel
+        </app-button>
+        <app-button type="submit" variant="admin-primary">
+          {{ editingEntryId() ? 'Update Entry' : 'Save Entry' }}
+        </app-button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div *ngIf="isFeedbackModalOpen()" class="admin-popup-backdrop" role="presentation" tabindex="0"
+  (click)="closeFeedbackModal()" (keydown.escape)="closeFeedbackModal()">
+  <section class="admin-popup-card" role="dialog" aria-modal="true" aria-labelledby="timeline-feedback-title"
+    tabindex="-1" (click)="$event.stopPropagation()" (keydown.escape)="closeFeedbackModal()">
+    <div class="admin-popup-card__icon" [class.admin-popup-card__icon--error]="feedbackTone() === 'error'">
+      <span class="material-symbols-outlined" aria-hidden="true">
+        {{ feedbackTone() === 'success' ? 'check_circle' : 'error' }}
+      </span>
+    </div>
+
+    <h2 id="timeline-feedback-title">{{ feedbackTitle() }}</h2>
+    <p>{{ feedbackMessage() }}</p>
+
+    <div class="admin-popup-actions admin-popup-actions--center">
+      <app-button variant="admin-primary" (clicked)="closeFeedbackModal()">Got it</app-button>
+    </div>
+  </section>
+</div>
+
+<div *ngIf="isRejectConfirmModalOpen()" class="admin-popup-backdrop" role="presentation" tabindex="0"
+  (click)="closeRejectConfirmModal()" (keydown.escape)="closeRejectConfirmModal()">
+  <section class="admin-popup-card admin-popup-card--confirm" role="dialog" aria-modal="true"
+    aria-labelledby="application-reject-title" tabindex="-1" (click)="$event.stopPropagation()"
+    (keydown.escape)="closeRejectConfirmModal()">
+    <div class="admin-popup-card__icon admin-popup-card__icon--error">
+      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+    </div>
+
+    <h2 id="application-reject-title">Reject Submission?</h2>
+    <p>
+      This submission will be rejected and removed from the pending list. This action cannot be undone.
+    </p>
+
+    <div class="admin-popup-actions">
+      <app-button variant="admin-secondary" (clicked)="closeRejectConfirmModal()">Cancel</app-button>
+      <app-button variant="admin-reject" (clicked)="confirmRejectApplication()">
+        reject
+      </app-button>
+    </div>
+  </section>
+</div>
+
+<div *ngIf="isEditInfoModalOpen()" class="modal-backdrop" role="presentation" tabindex="-1"
+  (keydown.escape)="closeEditInfoModal()">
+  <section class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="edit-info-modal-title">
+    <header class="modal-header">
+      <div>
+        <h2 id="edit-info-modal-title">Edit Submission Info</h2>
+        <p>Update applicant name and topic title.</p>
+      </div>
+      <app-button variant="admin-icon" aria-label="Close modal" (clicked)="closeEditInfoModal()">
+        X
+      </app-button>
+    </header>
+
+    <form class="schedule-form" (ngSubmit)="saveEditInfo()">
+      <label>
+        Applicant Name
+        <input type="text" name="applicantName" [(ngModel)]="editInfoForm.applicantName" placeholder="Full name"
+          required />
+      </label>
+
+      <label>
+        Talk Title
+        <textarea name="topic" [(ngModel)]="editInfoForm.topic" placeholder="Topic title" rows="3" required></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <app-button variant="admin-secondary" (clicked)="closeEditInfoModal()">
+          Cancel
+        </app-button>
+        <app-button type="submit" variant="admin-primary">
+          Save Changes
+        </app-button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div *ngIf="isDeleteAppConfirmModalOpen()" class="admin-popup-backdrop" role="presentation" tabindex="0"
+  (click)="closeDeleteAppConfirmModal()" (keydown.escape)="closeDeleteAppConfirmModal()">
+  <section class="admin-popup-card admin-popup-card--confirm" role="dialog" aria-modal="true"
+    aria-labelledby="app-history-delete-title" tabindex="-1" (click)="$event.stopPropagation()"
+    (keydown.escape)="closeDeleteAppConfirmModal()">
+    <div class="admin-popup-card__icon admin-popup-card__icon--error">
+      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+    </div>
+
+    <h2 id="app-history-delete-title">Delete Submission?</h2>
+    <p>
+      This approved submission will be permanently removed. This action cannot be undone.
+    </p>
+
+    <div class="admin-popup-actions">
+      <app-button variant="admin-secondary" (clicked)="closeDeleteAppConfirmModal()">Cancel</app-button>
+      <app-button variant="admin-reject" (clicked)="confirmDeleteApplicationHistory()">
+        Delete Submission
+      </app-button>
+    </div>
+  </section>
+</div>
+
+<div *ngIf="isDeleteConfirmModalOpen()" class="admin-popup-backdrop" role="presentation" tabindex="0"
+  (click)="closeDeleteConfirmModal()" (keydown.escape)="closeDeleteConfirmModal()">
+  <section class="admin-popup-card admin-popup-card--confirm" role="dialog" aria-modal="true"
+    aria-labelledby="timeline-delete-title" tabindex="-1" (click)="$event.stopPropagation()"
+    (keydown.escape)="closeDeleteConfirmModal()">
+    <div class="admin-popup-card__icon admin-popup-card__icon--error">
+      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+    </div>
+
+    <h2 id="timeline-delete-title">Delete Entry?</h2>
+    <p>
+      This timeline entry will be removed from the schedule. This action cannot be undone.
+    </p>
+
+    <div class="admin-popup-actions">
+      <app-button variant="admin-secondary" (clicked)="closeDeleteConfirmModal()">Cancel</app-button>
+      <app-button variant="admin-reject" (clicked)="confirmDeleteTimelineEntry()">
+        Delete Entry
+      </app-button>
+    </div>
+  </section>
+</div>
+
+<div *ngIf="isToastOpen()" class="admin-toast" role="status" aria-live="polite" aria-atomic="true">
+  <div class="admin-toast__icon" aria-hidden="true">
+    <span class="material-symbols-outlined">check_circle</span>
+  </div>
+  <div class="admin-toast__copy">
+    <strong>{{ toastTitle() }}</strong>
+    <span>{{ toastMessage() }}</span>
+  </div>
+  <button type="button" class="admin-toast__close" aria-label="Dismiss notification" (click)="closeToast()">
+    <span></span>
+    <span></span>
+  </button>
+</div>

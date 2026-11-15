@@ -1,0 +1,90 @@
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  allow-parallel-runners: false
+  build-tags: []
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  sort-results: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - typecheck
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+    - gosec
+    - unconvert
+
+linters-settings:
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+
+  govet:
+    enable-all: false
+    enable:
+      - atomicalign
+      - shadow
+      - unusedresult
+
+  gofmt:
+    simplify: true
+
+  revive:
+    confidence: 0.8
+
+  gosec:
+    exclude-generated: true
+    severity: medium
+    confidence: medium
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 3
+  new: false
+  fix: false
+  uniq-by-line: true
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - revive
+    - path: docs\.go
+      linters:
+        - all
+    - text: "weak cryptographic primitive"
+      linters:
+        - gosec
+  exclude-use-default: true
+  exclude-dirs:
+    - vendor
+    - .go
+    - .go-build
+    - build
+    - scripts
+    - migrations
+    - docs
+    - opensearch
+  exclude-files:
+    - ".*_test.go$"
+    - "mock_.*\\.go$"
+    - "docs\\.go$"
+
+severity:
+  default-severity: warning
+  min-severity: info

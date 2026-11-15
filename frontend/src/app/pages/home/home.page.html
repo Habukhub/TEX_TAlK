@@ -1,0 +1,281 @@
+<div class="home-page" [class.dark-theme]="currentTheme() === 'dark'">
+  <header class="home-topbar">
+    <div class="home-topbar__inner">
+      <a class="home-brand" href="/" aria-label="TEX TALK home">TEX TALK</a>
+
+      <button type="button" class="home-menu-toggle" [class.open]="isHomeNavOpen()"
+        [attr.aria-expanded]="isHomeNavOpen()" aria-label="Toggle navigation menu" (click)="toggleHomeNav()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <div class="home-topbar__actions" [class.open]="isHomeNavOpen()">
+        <nav class="home-nav" aria-label="Primary navigation">
+          <a *ngFor="let link of navLinks" #navLink
+            class="home-nav__link {{ activeSection() === link.id ? 'home-nav__link--active' : '' }}"
+            href="#{{ link.id }}" (click)="activeSection.set(link.id); closeHomeNav()">
+            {{ link.label }}
+          </a>
+          <div class="nav-indicator" [style.left.px]="indicatorStyle().left" [style.width.px]="indicatorStyle().width"
+            [style.opacity]="indicatorStyle().opacity"></div>
+        </nav>
+
+        <app-button variant="home-primary" [fullWidth]="isHomeNavOpen()" (clicked)="openSubmissionModal()">
+          Submit YOUR TOPIC
+        </app-button>
+
+      </div>
+    </div>
+  </header>
+
+  <main class="home-main">
+    <section class="hero-section">
+      <div class="hero-card">
+        <div class="hero-copy">
+
+          <p class="section-kicker">A STAGE FOR EVERY VOICE</p>
+          <h1>
+            TEX TALK:
+            <span>SPEAK WITH</span>
+            CONFIDENCE
+          </h1>
+          <p class="hero-copy__text">
+            Step up, practice speaking, and grow your confidence. TEX TALK is an internal stage for everyone to share,
+            learn, and speak more comfortably.
+          </p>
+          <div class="hero-actions">
+            <app-button variant="home-primary" (clicked)="openSubmissionModal()">
+              SUBMIT YOUR TOPIC
+            </app-button>
+            <app-button variant="home-secondary" (clicked)="scrollToSpeakers()">View talk schedule</app-button>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="hero-visual__glow"></div>
+          <img src="/assets/hero-character.png" alt="3D character with tablet" />
+        </div>
+      </div>
+    </section>
+
+    <section id="about" class="about-section">
+      <div class="section-heading">
+        <h2>ABOUT <span>TEX TALK</span></h2>
+        <div class="section-heading__line"></div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-card__glow"></div>
+
+        <div class="about-grid">
+          <div class="about-visual">
+            <div class="about-visual__halo"></div>
+            <img src="/assets/about-character.png" alt="3D characters representing the TEX TALK community" />
+          </div>
+
+          <div class="about-copy">
+            <p>
+              TEX TALK is a shared speaking space within our company where everyone can practice public speaking, build
+              confidence, and learn to express themselves clearly in front of others.
+            </p>
+
+            <div class="feature-list">
+              <article *ngFor="let feature of features" class="feature-item feature-item--{{ feature.tone }}">
+                <div class="feature-item__icon">
+                  <span class="material-symbols-outlined" aria-hidden="true">{{ feature.icon }}</span>
+                </div>
+
+                <div>
+                  <h3>{{ feature.title }}</h3>
+                  <p>{{ feature.description }}</p>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="timeline" class="submission-section">
+      <div class="timeline-showcase">
+        <div class="timeline-showcase__heading">
+          <p class="section-kicker">Speaking timeline</p>
+          <h2>Session schedule structure</h2>
+          <p>
+            A simple timeline layout for each speaking session. This structure will be filled with the real schedule
+            once speakers are confirmed.
+          </p>
+        </div>
+
+        <div class="timeline-showcase__rail" aria-label="Schedule timeline skeleton">
+          <article *ngFor="let item of timelineItems; let index = index"
+            class="timeline-node timeline-node--{{ item.side }}">
+            <div class="timeline-node__card">
+              <div class="timeline-node__date">{{ item.date }}</div>
+              <h3 class="timeline-node__heading">{{ item.title }}</h3>
+              <p class="timeline-node__desc" *ngIf="item.description">{{ item.description }}</p>
+            </div>
+
+            <div class="timeline-node__marker" [attr.aria-label]="'Timeline step ' + (index + 1)">
+              <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="speakers" class="queue-section">
+      <div class="queue-section__heading">
+        <h2>Talk schedule</h2>
+        <p>See who is speaking today and when.</p>
+        <div *ngIf="applicationService.isPresentationUploadEnabled()" style="margin-top: 16px;">
+          <app-button variant="home-primary" (clicked)="openUploadModal()">
+            UPLOAD PRESENTATION
+          </app-button>
+        </div>
+      </div>
+
+      <div class="queue-card">
+        <div class="queue-card__glow"></div>
+
+        <div class="queue-table">
+          <div class="queue-table__header">
+            <span>Schedule</span>
+            <span>Speaker</span>
+            <span>Talk Title</span>
+          </div>
+
+          <div class="queue-list" [class.queue-list--scrollable]="isQueueScrollable"
+            [style.max-height.px]="queueListMaxHeight"
+            [attr.aria-label]="isQueueScrollable ? 'Scrollable speaking schedule' : 'Speaking schedule'">
+            <article *ngFor="let entry of queueEntries()" class="queue-item queue-item--{{ entry.status }}">
+              <div class="queue-item__time">
+                <span *ngIf="entry.startTime !== 'TBA'">{{ entry.startTime }} - {{ entry.endTime }}</span>
+                <span *ngIf="entry.startTime === 'TBA'">To be announced</span>
+              </div>
+
+              <div class="queue-item__speaker">{{ entry.speaker }}</div>
+              <div class="queue-item__topic">{{ entry.topic }}</div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="home-footer">
+    <div class="home-footer__inner">
+      <div class="home-footer__brand">TEX TALK</div>
+
+      <div class="home-footer__copy">© 2026.All rights reserved by EXTOSOFT.</div>
+    </div>
+  </footer>
+
+  <div *ngIf="isSubmissionModalOpen()" class="submission-modal-backdrop" role="presentation" tabindex="0"
+    (click)="closeSubmissionModal()" (keydown.escape)="closeSubmissionModal()">
+    <section class="submission-modal" role="dialog" aria-modal="true" aria-labelledby="submission-modal-title"
+      tabindex="-1" (click)="$event.stopPropagation()" (keydown.escape)="closeSubmissionModal()">
+      <header class="submission-modal__header">
+        <div>
+          <p class="section-kicker">Speaker sign-up</p>
+          <h2 id="submission-modal-title">SIGN UP TO SPEAK</h2>
+        </div>
+
+        <button type="button" class="submission-modal__close" aria-label="Close submission form"
+          (click)="closeSubmissionModal()">
+          <span></span>
+          <span></span>
+        </button>
+      </header>
+
+      <form class="submission-form" (ngSubmit)="submitForm()">
+        <label>
+          <span>Full Name</span>
+          <input type="text" name="applicantName" [(ngModel)]="submissionForm.applicantName" placeholder="Jane Doe"
+            required />
+        </label>
+
+        <label>
+          <span>Email</span>
+          <input type="email" name="email" [(ngModel)]="submissionForm.email" (ngModelChange)="validateEmailFormat()"
+            [class.input-error]="emailFormatError()" placeholder="jane@example.com" required />
+          <p *ngIf="emailFormatError()" class="submission-form__error">
+            {{ emailFormatError() }}
+          </p>
+        </label>
+
+        <label>
+          <span>Talk Title</span>
+          <input type="text" name="topic" [(ngModel)]="submissionForm.topic"
+            placeholder="Please input your TEX Talk topic" required />
+        </label>
+
+        <div class="submission-modal__actions">
+          <app-button variant="home-secondary" (clicked)="closeSubmissionModal()">
+            Cancel
+          </app-button>
+          <app-button type="submit" variant="home-primary">Submit</app-button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div *ngIf="isSuccessModalOpen()" class="submission-modal-backdrop" role="presentation" tabindex="0"
+    (click)="closeSuccessModal()" (keydown.escape)="closeSuccessModal()">
+    <div class="success-modal-wrapper">
+      <div class="success-modal-glow"></div>
+      <section class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="success-modal-title"
+        tabindex="-1" (click)="$event.stopPropagation()" (keydown.escape)="closeSuccessModal()">
+
+        <div class="success-modal-content">
+          <span class="material-symbols-outlined success-icon" aria-hidden="true">check_circle</span>
+
+          <h2 id="success-modal-title">SIGN-UP<br>SUCCESSFUL</h2>
+
+          <p>Thank you! Your talk has been<br>submitted for review.</p>
+
+          <div class="success-actions">
+            <app-button variant="home-primary" (clicked)="closeSuccessModal()">AWESOME!</app-button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <app-upload-presentation [isOpen]="isUploadModalOpen()" [speakers]="applicationService.publicApprovedSpeakers()"
+    (dismissed)="closeUploadModal()" (upload)="handleUploadSubmit($event)">
+  </app-upload-presentation>
+
+  <!-- Upload Presentation Success Modal -->
+  <div *ngIf="isUploadSuccessModalOpen()" class="submission-modal-backdrop" role="presentation" tabindex="0"
+    (click)="closeUploadSuccessModal()" (keydown.escape)="closeUploadSuccessModal()">
+    <div class="success-modal-wrapper">
+      <div class="success-modal-glow"></div>
+      <section class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="upload-success-modal-title"
+        tabindex="-1" (click)="$event.stopPropagation()" (keydown.escape)="closeUploadSuccessModal()">
+
+        <div class="success-modal-content">
+          <span class="material-symbols-outlined success-icon" aria-hidden="true">cloud_done</span>
+
+          <h2 id="upload-success-modal-title">UPLOAD<br>SUCCESSFUL</h2>
+          <p class="success-modal-note">Need to make changes? <br>You can upload a new file anytime to replace the
+            current one.</p>
+
+          <div class="success-actions">
+            <app-button variant="home-primary" (clicked)="closeUploadSuccessModal()">GOT IT!</app-button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Floating theme toggle (fixed bottom-right) -->
+  <button class="theme-toggle" (click)="toggleTheme()"
+    [attr.aria-label]="currentTheme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'" type="button">
+    <span class="material-symbols-outlined" aria-hidden="true">
+      {{ currentTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}
+    </span>
+  </button>
+
+</div>

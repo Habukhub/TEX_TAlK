@@ -1,0 +1,22 @@
+<div *ngIf="isOpen" class="modal-backdrop" role="presentation" tabindex="0"
+  (click)="onClose()" (keydown.escape)="onClose()">
+  <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"
+    tabindex="-1" (click)="$event.stopPropagation()" (keydown.escape)="onClose()">
+    
+    <header class="modal__header">
+      <div>
+        <p class="section-kicker" *ngIf="kicker">{{ kicker }}</p>
+        <h2 id="modal-title" *ngIf="title">{{ title }}</h2>
+      </div>
+
+      <button type="button" class="modal__close" aria-label="Close modal" (click)="onClose()">
+        <span></span>
+        <span></span>
+      </button>
+    </header>
+
+    <div class="modal__content">
+      <ng-content></ng-content>
+    </div>
+  </section>
+</div>
